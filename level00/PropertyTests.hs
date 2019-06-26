@@ -7,7 +7,7 @@ import           Control.Lens        (Prism', matching, preview, review)
 import           Control.Lens.TH     (makePrisms)
 
 import           Data.Function       (on)
-import           Data.List           (filter, insertBy, nubBy)
+import           Data.List           (filter, insertBy, nubBy, deleteBy)
 import           Data.Monoid         (Endo (..))
 
 import           Test.Tasty          (TestTree, testGroup)
@@ -168,11 +168,23 @@ genMyBTreeVal = liftA2 (,) (Gen.int (Range.linear (-100) 100)) (Gen.enum 'a' 'z'
 --          [(1, 'a'), (3,'c')] -> modelInsert (2,'b') -> [(1, 'a'), (2,'b'), (3,'c')]
 --
 prop_MyBTree_Insert :: Property
-prop_MyBTree_Insert = error "prop_MyBTree_Insert not implemented"
+prop_MyBTree_Insert = property $ do
+    list <- forAll $ Gen.list (Range.linear 0 1000) genMyBTreeVal
+    (k, v) <- forAll $ genMyBTreeVal
+    fromList ((k,v) : list) === insert k v (fromList list)
 
 -- Now implement a test to ensure that we're correctly deleting elements within the tree.
 prop_MyBTree_Delete :: Property
-prop_MyBTree_Delete = error "prop_MyBTree_Delete not implemented"
+prop_MyBTree_Delete = property $ do
+    list <- forAll $ Gen.list (Range.linear 0 1000) genMyBTreeVal
+    (k, v) <- forAll $ genMyBTreeVal
+    let listWithKey = nubBy ((==) `on` fst) ((k,v):list)
+    let listWithoutKey = deleteBy ((==) `on` fst) (k,v) listWithKey
+    deleteKey k (fromList listWithKey) === fromList listWithoutKey
+
+--    tree <- forAll $ genTree genMyBTreeVal
+--    (k, v) <- forAll $ genMyBTreeVal
+--    deleteKey k (insert k v tree) === deleteKey k tree
 
 
 ----------------------------------------------------------------------------------------------------
