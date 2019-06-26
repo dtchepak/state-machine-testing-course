@@ -212,13 +212,12 @@ propertyTests = testGroup "Level00 - Property Tests"
   , testProperty "Prism Second Prism Law MyBTree _Empty" (secondPrismLaw myBTreeGen _Empty)
   , testProperty "Prism Third Prism Law MyBTree _Empty" (thirdPrismLaw myBTreeGen _Empty)
 
-  , testProperty "Prism First Prism Law MyBTree _Node" (firstPrismLaw (Gen.constant ()) _Empty)
-  , testProperty "Prism Second Prism Law MyBTree _Node" (secondPrismLaw myNodeGen _Node)
+  , testProperty "Prism First Prism Law MyBTree _Node" (firstPrismLaw (myNodeGen (,,)) _Node)
+  , testProperty "Prism Second Prism Law MyBTree _Node" (secondPrismLaw (myNodeGen Node) _Node)
   , testProperty "Prism Third Prism Law MyBTree _Node" (thirdPrismLaw myBTreeGen _Node)
   ]
 
   where myBTreeGen = genTree genMyBTreeVal
-        myNodeGen :: Gen (MyBTree Int Char)
-        myNodeGen = Node <$> genTree genMyBTreeVal <*> genMyBTreeVal <*>  genTree genMyBTreeVal
+        myNodeGen f = f <$> myBTreeGen <*> genMyBTreeVal <*> myBTreeGen
 
 
