@@ -7,6 +7,7 @@ module MyBTree
   , deleteKey
   , fromList
   , toListWithKey
+  , foldTree
   ) where
 
 -- Data structure and functions inspired by a presentation by John Hughes: "Building on developer intuitions". 
@@ -16,7 +17,11 @@ module MyBTree
 data MyBTree k a
   = Empty
   | Node (MyBTree k a) (k,a) (MyBTree k a)
-  deriving (Show, Functor, Traversable, Foldable)
+  deriving (Show, Functor, Traversable, Foldable, Eq)
+
+foldTree :: b -> (MyBTree k a -> (k, a) -> MyBTree k a -> b) -> MyBTree k a -> b
+foldTree b _ Empty = b
+foldTree _ f (Node l n r) = f l n r
 
 fromList :: (Foldable f, Ord k) => f (k,a) -> MyBTree k a
 fromList = foldr (uncurry insert) Empty
@@ -52,3 +57,4 @@ deleteKey k (Node l (k0,v0) r) = case compare k k0 of
     findMin (Node Empty kv _) = kv
     findMin (Node leftT _ _)  = findMin leftT
     findMin _                 = error "impossible?"
+

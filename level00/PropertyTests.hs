@@ -20,7 +20,8 @@ import qualified Hedgehog.Range      as Range
 import           MyBTree
 
 -- [OPTIONAL]
-import           LawPropertiesBonus  (myBTreePrismLaws)
+import           LawPropertiesBonus  (_Node, _Empty,
+                                      firstPrismLaw, secondPrismLaw, thirdPrismLaw)
 
 ----------------------------------------------------------------------------------------------------
 addTen :: Int -> Int
@@ -30,7 +31,9 @@ addTen = appEndo . foldMap Endo $ replicate 10 succ
 --
 -- \/ (x : Int) -> addTen x === (x + 10)
 prop_addTen :: Property
-prop_addTen = error "prop_addTen not implemented"
+prop_addTen = property $ do
+    x <- forAll Gen.enumBounded
+    addTen x === x + 10
 
 ----------------------------------------------------------------------------------------------------
 
@@ -40,14 +43,22 @@ prop_addTen = error "prop_addTen not implemented"
 -- test, and commensurately the function itself, more robust.
 --
 badReverse :: [a] -> [a]
-badReverse []     = []
-badReverse (_:xs) = reverse xs
+-- badReverse []     = []
+-- badReverse (_:xs) = reverse xs
+--badReverse = id
+badReverse = foldl (flip (:)) []
 
 prop_badReverse :: Property
 prop_badReverse = property $ do
   xs <- forAll (Gen.list (Range.linear 0 1000) Gen.bool)
   badReverse (badReverse xs) === xs
   -- [BONUS]: Are there other properties for reversing a list that could make this test more robust?
+prop_badReverseNonEmpty :: Property
+prop_badReverseNonEmpty = property $ do
+  xs <- forAll (Gen.list (Range.linear 0 1000) Gen.bool)
+  ys <- forAll (Gen.list (Range.linear 0 1000) Gen.bool)
+  badReverse (xs ++ ys) === badReverse ys ++ badReverse xs
+
 
 ----------------------------------------------------------------------------------------------------
 
@@ -70,27 +81,54 @@ validCoin (Coin c) = c >= 0 && c < maxCoinValue
 
 -- This is the function we're going to write some tests for.
 addCoins :: Coin -> Coin -> Maybe Coin
-addCoins (Coin a) (Coin b) =
-  if a + b < maxCoinValue
+addCoins (Coin a) (Coin b) = -- Just (Coin (a+b))
+    if a + b < maxCoinValue
     then Just (Coin $ a + b)
     else Nothing
 
 -- Write our generator for Coin
 genCoin :: MonadGen m => m Coin
-genCoin = error "genCoin not implemented"
+genCoin = Coin <$> Gen.enumBounded
+
+genValidCoin :: MonadGen m => m Coin
+genValidCoin = Gen.filter validCoin (Coin <$> Gen.int (Range.constant 0 maxCoinValue))
 
 -- Test our 'normal' case, aka the happy path
 prop_addCoins_Normal :: Property
-prop_addCoins_Normal = error "prop_addCoins_Normal not implemented"
+prop_addCoins_Normal = property $ do
+    Coin a <- forAll genValidCoin
+    Coin b <- forAll genValidCoin
+    maybe
+        (assert (a + b > maxCoinValue))
+        (=== Coin (a+b))
+        (addCoins (Coin a) (Coin b))
+
+coinValue :: Coin -> Int
+coinValue (Coin c) = c
 
 -- Test the 'overflow' case, aka the sad path
 prop_addCoins_Overflow :: Property
-prop_addCoins_Overflow = error "prop_addCoins_Overflow not implemented"
+prop_addCoins_Overflow =
+    let halfMaxValue = maxCoinValue `div` 2
+    in property $ do
+        a <- forAll (Gen.filter ((> halfMaxValue) . coinValue) genCoin)
+        b <- forAll (Gen.filter ((> halfMaxValue) . coinValue) genCoin)
+        maybe
+            success
+            (assert . not . validCoin)
+            (addCoins a b)
 
 -- Instead of having separate properties, we can combine them into a single
 -- property test.
 prop_addCoins_Combined :: Property
-prop_addCoins_Combined = error "prop_addCoins not implemented"
+prop_addCoins_Combined = property $ do
+    a <- forAll genCoin
+    b <- forAll genCoin
+    let rawSum = coinValue a + coinValue b
+    maybe
+        (assert (rawSum > maxCoinValue))
+        (if rawSum > maxCoinValue then assert . not . validCoin else (=== Coin rawSum))
+        (addCoins a b)
 
 ----------------------------------------------------------------------------------------------------
 
@@ -136,12 +174,14 @@ prop_MyBTree_Insert = error "prop_MyBTree_Insert not implemented"
 prop_MyBTree_Delete :: Property
 prop_MyBTree_Delete = error "prop_MyBTree_Delete not implemented"
 
+
 ----------------------------------------------------------------------------------------------------
   --
 propertyTests :: TestTree
 propertyTests = testGroup "Level00 - Property Tests"
   [ testProperty "Addition still works" prop_addTen
   , testProperty "Bad reverse is bad" prop_badReverse
+  , testProperty "Bad reverse id is bad" prop_badReverseNonEmpty
   , testProperty "Add Coins (Normal)" prop_addCoins_Normal
   , testProperty "Add Coins (Overflow)" prop_addCoins_Overflow
   , testProperty "Add Coins (Combined)" prop_addCoins_Combined
@@ -156,5 +196,17 @@ propertyTests = testGroup "Level00 - Property Tests"
   -- enjoyment and to demonstrate that property based testing can provide
   -- _immense_ power for validating necessary assumptions.
   --
-  -- , testProperty "Prism Laws Hold for MyBTree" myBTreePrismLaws
+  , testProperty "Prism First Prism Law MyBTree _Empty" (firstPrismLaw (Gen.constant ()) _Empty)
+  , testProperty "Prism Second Prism Law MyBTree _Empty" (secondPrismLaw myBTreeGen _Empty)
+  , testProperty "Prism Third Prism Law MyBTree _Empty" (thirdPrismLaw myBTreeGen _Empty)
+
+  , testProperty "Prism First Prism Law MyBTree _Node" (firstPrismLaw (Gen.constant ()) _Empty)
+  , testProperty "Prism Second Prism Law MyBTree _Node" (secondPrismLaw myNodeGen _Node)
+  , testProperty "Prism Third Prism Law MyBTree _Node" (thirdPrismLaw myBTreeGen _Node)
   ]
+
+  where myBTreeGen = genTree genMyBTreeVal
+        myNodeGen :: Gen (MyBTree Int Char)
+        myNodeGen = Node <$> genTree genMyBTreeVal <*> genMyBTreeVal <*>  genTree genMyBTreeVal
+
+
