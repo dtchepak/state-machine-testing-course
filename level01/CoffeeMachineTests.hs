@@ -48,17 +48,50 @@ cSetDrinkCoffee mach = Command gen exec
 -- types. Replace `undefined` with a typed hole and pay attention to
 -- the type of each argument.
 
+data SetDrinkHotChocolate (v :: Type -> Type) = SetDrinkHotChocolate deriving Show
+instance HTraversable SetDrinkHotChocolate where
+  htraverse _ _ = pure SetDrinkHotChocolate
+
 cSetDrinkHotChocolate
   :: forall g m. (MonadGen g, MonadTest m, MonadIO m)
   => C.Machine
   -> Command g m Model
-cSetDrinkHotChocolate = undefined
+cSetDrinkHotChocolate mach = Command gen exec
+  [ Update $ \_oldModel _input _execResult -> Model HotChocolate
+  , Ensure $ \_oldModel _newModel _input drink -> case drink of
+      C.HotChocolate{} -> success
+      _ -> failure
+  ]
+  where
+    gen :: Model Symbolic -> Maybe (g (SetDrinkHotChocolate Symbolic))
+    gen _ = Just (pure SetDrinkHotChocolate)
+    exec :: SetDrinkHotChocolate Concrete -> m C.Drink
+    exec _ = do
+      C.hotChocolate mach
+      view C.drinkSetting <$> C.peek mach
+
+data SetDrinkTea (v :: Type -> Type) = SetDrinkTea deriving Show
+instance HTraversable SetDrinkTea where
+  htraverse _ _ = pure SetDrinkTea
 
 cSetDrinkTea
   :: forall g m. (MonadGen g, MonadTest m, MonadIO m)
   => C.Machine
   -> Command g m Model
-cSetDrinkTea = undefined
+cSetDrinkTea mach = Command gen exec
+  [ Update $ \_oldModel _input _execResult -> Model Tea
+  , Ensure $ \_oldModel _newModel _input drink -> case drink of
+      C.Tea{} -> success
+      _ -> failure
+  ]
+  where
+    gen :: Model Symbolic -> Maybe (g (SetDrinkTea Symbolic))
+    gen _ = Just (pure SetDrinkTea)
+    exec :: SetDrinkTea Concrete -> m C.Drink
+    exec _ = do
+      C.tea mach
+      view C.drinkSetting <$> C.peek mach
+
 
 stateMachineTests :: TestTree
 stateMachineTests = testProperty "State Machine Tests" . property $ do
